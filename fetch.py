@@ -23,7 +23,7 @@ import yfinance as yf
 
 OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "screener_data.json")
 
-MARKET_CAP_MAX = 1_000_000_000  # $1B
+MARKET_CAP_MAX = 5_000_000_000  # $5B
 MARKET_CAP_MIN = 100_000_000    # $100M floor — filter micro-cap noise
 
 # S&P 600 GICS sector names → screener display labels
