@@ -134,6 +134,8 @@ body {
 }
 
 .sc-table tbody tr:hover td { background: rgba(0,0,0,0.02); }
+.sc-table tbody tr.row-seasonal td { background: rgba(0,0,0,0.025); }
+.sc-table tbody tr.row-seasonal:hover td { background: rgba(0,0,0,0.045); }
 
 /* Right-align numeric columns */
 th.c-mcap, th.c-price, th.c-target, th.c-upside,

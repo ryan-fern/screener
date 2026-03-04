@@ -190,7 +190,7 @@ function render() {
   }
 
   document.getElementById('rev-body').innerHTML = rows.map((s, i) => `
-    <tr>
+    <tr class="${s.seasonal ? 'row-seasonal' : ''}">
       <td class="c-rank">${i + 1}</td>
       <td class="c-ticker"><b>${s.symbol}</b></td>
       <td class="c-name" title="${s.name}">${s.name}</td>
@@ -202,7 +202,7 @@ function render() {
       <td class="c-qoq   ${growthClass(s.qoq_pct)}">${fmtPct(s.qoq_pct)}</td>
       <td class="c-pyoy  ${growthClass(s.prior_qoq_pct)}">${fmtPct(s.prior_qoq_pct)}</td>
       <td class="c-yaccel ${accelClass(s.qoq_accel)}">${fmtPpt(s.qoq_accel)}</td>
-      <td class="c-seas">${s.seasonal ? '<span style="color:rgba(0,0,0,0.4)">yes</span>' : '—'}</td>
+      <td class="c-seas">${s.seasonal ? '~' : '—'}</td>
     </tr>`).join('');
 }
 
