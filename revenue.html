@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Revenue Re-Acceleration Screener</title>
+  <link rel="stylesheet" href="screener.css">
+</head>
+<body>
+
+<div style="max-width: 800px; margin: 0 auto; padding: 0 24px;">
+  <p style="color: rgba(0, 0, 0, 0.4); font-size: 13px; margin-bottom: 4px;"><i id="updated-date">—</i></p>
+  <p><b>REVENUE RE-ACCELERATION SCREENER</b></p>
+  <hr>
+</div>
+
+<div class="screener-wrap">
+
+  <!-- Controls -->
+  <div class="sc-controls">
+    <div class="sc-control-group">
+      <span class="sc-label">SECTOR</span>
+      <div class="sc-chips" id="sector-filters">
+        <button class="sc-chip active" data-sector="all">All</button>
+        <button class="sc-chip" data-sector="Consumer">Consumer</button>
+        <button class="sc-chip" data-sector="Technology">Technology</button>
+        <button class="sc-chip" data-sector="Hardware">Hardware</button>
+      </div>
+    </div>
+    <div class="sc-control-group">
+      <span class="sc-label">SORT</span>
+      <div class="sc-chips" id="sort-filters">
+        <button class="sc-chip sort-chip active" data-sort="score">Re-Accel Score</button>
+        <button class="sc-chip sort-chip" data-sort="yoy_pct">YoY %</button>
+        <button class="sc-chip sort-chip" data-sort="qoq_pct">QoQ %</button>
+        <button class="sc-chip sort-chip" data-sort="market_cap">Mkt Cap</button>
+      </div>
+    </div>
+    <div class="sc-control-group">
+      <span class="sc-label">SIGNAL</span>
+      <div class="sc-chips" id="signal-filters">
+        <button class="sc-chip active" data-signal="all">All</button>
+        <button class="sc-chip" data-signal="accelerating">Accelerating only</button>
+      </div>
+    </div>
+    <div class="sc-control-group sc-search-group">
+      <input class="sc-search" id="search" type="text" placeholder="Search…">
+      <span class="sc-count" id="stock-count"></span>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="sc-table-wrap">
+    <table class="sc-table" id="rev-table">
+      <thead>
+        <tr>
+          <th class="c-rank">#</th>
+          <th class="c-ticker sortable" data-col="symbol">Ticker</th>
+          <th class="c-name">Company</th>
+          <th class="c-sector">Sector</th>
+          <th class="c-mcap  sortable" data-col="market_cap">Mkt Cap</th>
+          <th class="c-qtr">Latest Qtr</th>
+          <th class="c-rev   sortable" data-col="revenue_m">Revenue</th>
+          <th class="c-yoy   sortable" data-col="yoy_pct">YoY %</th>
+          <th class="c-qoq   sortable" data-col="qoq_pct">QoQ %</th>
+          <th class="c-pyoy  sortable" data-col="prior_qoq_pct">Prior QoQ %</th>
+          <th class="c-yaccel sortable active-col" data-col="score">QoQ Δ</th>
+          <th class="c-seas">Seasonal</th>
+        </tr>
+      </thead>
+      <tbody id="rev-body">
+        <tr><td colspan="12" class="sc-empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footer note -->
+  <p style="font-size: 12px; color: rgba(0,0,0,0.35); margin-top: 14px; padding: 0 2px;">
+    Universe: S&amp;P 600 components in technology, consumer, and hardware sectors with market cap &lt;$5B.
+    Financials from Yahoo Finance. <b>QoQ Δ</b> = change in sequential quarterly growth rate (ppt) — the re-acceleration signal.
+    Positive = growth is speeding up. <b>Seasonal</b> flag = avg quarterly swing &gt;20%; interpret QoQ cautiously for these names.
+  </p>
+
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let allStocks  = [];
+let activeSector = 'all';
+let activeSort   = 'score';
+let activeSignal = 'all';
+let searchQuery  = '';
+let sortAsc      = false;
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+async function loadData() {
+  try {
+    const resp = await fetch('revenue_data.json?_=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    allStocks = data.stocks || [];
+
+    const d = new Date(data.updated_at);
+    document.getElementById('updated-date').textContent =
+      d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    render();
+  } catch (e) {
+    document.getElementById('rev-body').innerHTML =
+      '<tr><td colspan="12" class="sc-empty">Failed to load: ' + e.message + '</td></tr>';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function getFiltered() {
+  return allStocks.filter(s => {
+    if (activeSector !== 'all' && s.sector !== activeSector) return false;
+    if (activeSignal === 'accelerating' && (s.score == null || s.score <= 0)) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!s.symbol.toLowerCase().includes(q) && !s.name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function getSorted(stocks) {
+  return [...stocks].sort((a, b) => {
+    const av = a[activeSort] ?? -Infinity;
+    const bv = b[activeSort] ?? -Infinity;
+    return sortAsc ? av - bv : bv - av;
+  });
+}
+
+function fmtMc(n) {
+  if (n == null) return '—';
+  return n >= 1e9 ? '$' + (n/1e9).toFixed(1)+'B' : '$' + (n/1e6).toFixed(0)+'M';
+}
+
+function fmtRev(n) {
+  if (n == null) return '—';
+  return n >= 1000 ? '$' + (n/1000).toFixed(1)+'B' : '$' + n.toFixed(0)+'M';
+}
+
+function fmtPct(n) {
+  if (n == null) return '—';
+  return (n > 0 ? '+' : '') + n.toFixed(1) + '%';
+}
+
+function fmtPpt(n) {
+  if (n == null) return '—';
+  return (n > 0 ? '+' : '') + n.toFixed(1) + ' ppt';
+}
+
+// Color classes for growth rates
+function growthClass(val) {
+  if (val == null) return '';
+  if (val > 10)  return 'val-green-strong';
+  if (val > 0)   return 'val-green';
+  if (val > -10) return 'val-red';
+  return 'val-red-strong';
+}
+
+// Color classes for acceleration deltas
+function accelClass(val) {
+  if (val == null) return '';
+  if (val > 5)  return 'val-green-strong';
+  if (val > 0)  return 'val-green';
+  if (val > -5) return 'val-red';
+  return 'val-red-strong';
+}
+
+function render() {
+  const rows = getSorted(getFiltered());
+  document.getElementById('stock-count').textContent = rows.length + ' stocks';
+
+  document.querySelectorAll('th.sortable').forEach(th =>
+    th.classList.toggle('active-col', th.dataset.col === activeSort));
+
+  if (!rows.length) {
+    document.getElementById('rev-body').innerHTML =
+      '<tr><td colspan="12" class="sc-empty">No stocks match.</td></tr>';
+    return;
+  }
+
+  document.getElementById('rev-body').innerHTML = rows.map((s, i) => `
+    <tr>
+      <td class="c-rank">${i + 1}</td>
+      <td class="c-ticker"><b>${s.symbol}</b></td>
+      <td class="c-name" title="${s.name}">${s.name}</td>
+      <td class="c-sector"><span class="sc-badge sc-badge--${s.sector.toLowerCase()}">${s.sector}</span></td>
+      <td class="c-mcap">${fmtMc(s.market_cap)}</td>
+      <td class="c-qtr">${s.latest_quarter ?? '—'}</td>
+      <td class="c-rev">${fmtRev(s.revenue_m)}</td>
+      <td class="c-yoy   ${growthClass(s.yoy_pct)}">${fmtPct(s.yoy_pct)}</td>
+      <td class="c-qoq   ${growthClass(s.qoq_pct)}">${fmtPct(s.qoq_pct)}</td>
+      <td class="c-pyoy  ${growthClass(s.prior_qoq_pct)}">${fmtPct(s.prior_qoq_pct)}</td>
+      <td class="c-yaccel ${accelClass(s.qoq_accel)}">${fmtPpt(s.qoq_accel)}</td>
+      <td class="c-seas">${s.seasonal ? '<span style="color:rgba(0,0,0,0.4)">yes</span>' : '—'}</td>
+    </tr>`).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------
+document.querySelectorAll('#sector-filters .sc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sector-filters .sc-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSector = btn.dataset.sector;
+    render();
+  }));
+
+document.querySelectorAll('#sort-filters .sc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const s = btn.dataset.sort;
+    if (s === activeSort) { sortAsc = !sortAsc; }
+    else {
+      activeSort = s; sortAsc = false;
+      document.querySelectorAll('#sort-filters .sc-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    render();
+  }));
+
+document.querySelectorAll('#signal-filters .sc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#signal-filters .sc-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSignal = btn.dataset.signal;
+    render();
+  }));
+
+document.querySelectorAll('th.sortable').forEach(th =>
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === activeSort) { sortAsc = !sortAsc; }
+    else {
+      activeSort = col; sortAsc = false;
+      document.querySelectorAll('.sort-chip').forEach(c =>
+        c.classList.toggle('active', c.dataset.sort === activeSort));
+    }
+    render();
+  }));
+
+let searchTimer;
+document.getElementById('search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQuery = e.target.value.trim(); render(); }, 200);
+});
+
+loadData();
+</script>
+</body>
+</html>

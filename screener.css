@@ -163,6 +163,27 @@ th.c-count, td.c-count { text-align: center; }
 .up-low   td.c-upside { color: #b91c1c; font-weight: 600; }
 
 /* --------------------------------------------------------------------------
+   Growth / acceleration value colors (used by revenue screener)
+   -------------------------------------------------------------------------- */
+.val-green-strong { color: rgba(38, 136, 35, 0.89); font-weight: 700; }
+.val-green        { color: rgba(38, 136, 35, 0.89); }
+.val-red          { color: #b91c1c; }
+.val-red-strong   { color: #b91c1c; font-weight: 700; }
+
+/* Revenue screener column widths */
+.c-qtr    { width: 76px; font-size: 12px; color: rgba(0,0,0,0.5); }
+.c-rev    { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+.c-yoy    { width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+.c-pyoy   { width: 84px; text-align: right; font-variant-numeric: tabular-nums; color: rgba(0,0,0,0.5); }
+.c-yaccel { width: 80px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.c-qoq    { width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+.c-qaccel { width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+.c-seas   { width: 68px; text-align: center; font-size: 12px; }
+
+th.c-rev, th.c-yoy, th.c-pyoy, th.c-yaccel, th.c-qoq, th.c-qaccel { text-align: right; }
+th.c-seas { text-align: center; }
+
+/* --------------------------------------------------------------------------
    Sector badge
    -------------------------------------------------------------------------- */
 .sc-badge {

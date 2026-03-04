@@ -21,13 +21,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run screener fetch
+      - name: Run analyst target screener
         run: python fetch.py
+
+      - name: Run revenue re-acceleration screener
+        run: python fetch_revenue.py
 
       - name: Commit updated screener data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add screener_data.json
+          git add screener_data.json revenue_data.json
           git diff --staged --quiet || git commit -m "chore: update screener data [skip ci]"
           git push
