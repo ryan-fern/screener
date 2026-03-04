@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Small-Cap Screener</title>
+  <link rel="stylesheet" href="screener.css">
+</head>
+<body>
+
+<div style="max-width: 800px; margin: 0 auto; padding: 0 24px;">
+  <p><a href="/" rel="history" style="color: rgba(38, 136, 35, 0.89); text-decoration: none;">← Ryan Tish</a></p>
+  <p style="color: rgba(0, 0, 0, 0.4); font-size: 13px; margin-bottom: 4px;"><i id="updated-date">—</i></p>
+  <p><b>SMALL-CAP ANALYST TARGET SCREENER</b></p>
+  <hr>
+</div>
+
+<!-- Screener — wider than the 800px prose container -->
+<div class="screener-wrap">
+
+  <!-- Controls -->
+  <div class="sc-controls">
+    <div class="sc-control-group">
+      <span class="sc-label">SECTOR</span>
+      <div class="sc-chips" id="sector-filters">
+        <button class="sc-chip active" data-sector="all">All</button>
+        <button class="sc-chip" data-sector="Consumer">Consumer</button>
+        <button class="sc-chip" data-sector="Technology">Technology</button>
+        <button class="sc-chip" data-sector="Hardware">Hardware</button>
+      </div>
+    </div>
+    <div class="sc-control-group">
+      <span class="sc-label">SORT</span>
+      <div class="sc-chips" id="sort-filters">
+        <button class="sc-chip sort-chip active" data-sort="upside_pct">Upside %</button>
+        <button class="sc-chip sort-chip" data-sort="gap_pct">Gap %</button>
+        <button class="sc-chip sort-chip" data-sort="disagreement_pct">Disagreement</button>
+        <button class="sc-chip sort-chip" data-sort="combined_score">Score</button>
+      </div>
+    </div>
+    <div class="sc-control-group sc-search-group">
+      <input class="sc-search" id="search" type="text" placeholder="Search…">
+      <span class="sc-count" id="stock-count"></span>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="sc-table-wrap">
+    <table class="sc-table" id="screener-table">
+      <thead>
+        <tr>
+          <th class="c-rank">#</th>
+          <th class="c-ticker sortable" data-col="symbol">Ticker</th>
+          <th class="c-name">Company</th>
+          <th class="c-sector">Sector</th>
+          <th class="c-mcap  sortable" data-col="market_cap">Mkt Cap</th>
+          <th class="c-price sortable" data-col="price">Price</th>
+          <th class="c-target sortable" data-col="weighted_avg_target">Avg Target</th>
+          <th class="c-upside sortable active-col" data-col="upside_pct">Upside %</th>
+          <th class="c-count sortable" data-col="analyst_count">Analysts</th>
+          <th class="c-disagree sortable" data-col="disagreement_pct">Disagreement</th>
+          <th class="c-score sortable" data-col="combined_score">Score</th>
+          <th class="c-conf sortable" data-col="confidence">Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="screener-body">
+        <tr><td colspan="12" class="sc-empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footer note -->
+  <p style="font-size: 12px; color: rgba(0,0,0,0.35); margin-top: 14px; padding: 0 2px;">
+    Universe: S&amp;P 600 components in technology, consumer, and hardware sectors with market cap &lt;$1B.
+    Analyst targets from Yahoo Finance. <b>Score</b> = upside × analyst confidence.
+    <b>Disagreement</b> = spread between high and low target as % of mean.
+  </p>
+
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let allStocks = [];
+let activeSector = 'all';
+let activeSort   = 'upside_pct';
+let searchQuery  = '';
+let sortAsc      = false;
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+async function loadData() {
+  try {
+    const resp = await fetch('screener_data.json?_=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    allStocks = data.stocks || [];
+
+    const d = new Date(data.updated_at);
+    document.getElementById('updated-date').textContent =
+      d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    render();
+  } catch (e) {
+    document.getElementById('screener-body').innerHTML =
+      '<tr><td colspan="12" class="sc-empty">Failed to load: ' + e.message + '</td></tr>';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function filtered() {
+  return allStocks.filter(s => {
+    if (activeSector !== 'all' && s.sector !== activeSector) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!s.symbol.toLowerCase().includes(q) && !s.name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function sorted(stocks) {
+  return [...stocks].sort((a, b) => {
+    const av = a[activeSort] ?? -Infinity;
+    const bv = b[activeSort] ?? -Infinity;
+    return sortAsc ? av - bv : bv - av;
+  });
+}
+
+function fmt$(n)   { return n != null ? '$' + Number(n).toFixed(2) : '—'; }
+function fmtMc(n)  {
+  if (n == null) return '—';
+  return n >= 1e9 ? '$' + (n/1e9).toFixed(1)+'B' : '$' + (n/1e6).toFixed(0)+'M';
+}
+function fmtPct(n) {
+  if (n == null) return '—';
+  return (n > 0 ? '+' : '') + n.toFixed(1) + '%';
+}
+
+function upsideClass(u) {
+  if (u >= 20)  return 'up-high';
+  if (u >= 5)   return 'up-mid';
+  if (u > -5)   return 'up-flat';
+  return 'up-low';
+}
+
+function render() {
+  const rows = sorted(filtered());
+  document.getElementById('stock-count').textContent = rows.length + ' stocks';
+
+  document.querySelectorAll('th.sortable').forEach(th =>
+    th.classList.toggle('active-col', th.dataset.col === activeSort));
+
+  if (!rows.length) {
+    document.getElementById('screener-body').innerHTML =
+      '<tr><td colspan="12" class="sc-empty">No stocks match.</td></tr>';
+    return;
+  }
+
+  document.getElementById('screener-body').innerHTML = rows.map((s, i) => `
+    <tr class="${upsideClass(s.upside_pct)}">
+      <td class="c-rank">${i + 1}</td>
+      <td class="c-ticker"><b>${s.symbol}</b></td>
+      <td class="c-name" title="${s.name}">${s.name}</td>
+      <td class="c-sector"><span class="sc-badge sc-badge--${s.sector.toLowerCase()}">${s.sector}</span></td>
+      <td class="c-mcap">${fmtMc(s.market_cap)}</td>
+      <td class="c-price">${fmt$(s.price)}</td>
+      <td class="c-target">${fmt$(s.weighted_avg_target)}</td>
+      <td class="c-upside">${fmtPct(s.upside_pct)}</td>
+      <td class="c-count">${s.analyst_count ?? '—'}</td>
+      <td class="c-disagree">${s.disagreement_pct != null ? s.disagreement_pct.toFixed(1)+'%' : '—'}</td>
+      <td class="c-score">${s.combined_score != null ? s.combined_score.toFixed(1) : '—'}</td>
+      <td class="c-conf">
+        <div class="sc-bar-wrap">
+          <div class="sc-bar" style="width:${Math.round((s.confidence??0)*100)}%"></div>
+          <span>${s.confidence != null ? Math.round(s.confidence*100)+'%' : '—'}</span>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------
+document.querySelectorAll('#sector-filters .sc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sector-filters .sc-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSector = btn.dataset.sector;
+    render();
+  }));
+
+document.querySelectorAll('#sort-filters .sc-chip').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const s = btn.dataset.sort;
+    if (s === activeSort) { sortAsc = !sortAsc; }
+    else {
+      activeSort = s; sortAsc = false;
+      document.querySelectorAll('#sort-filters .sc-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    render();
+  }));
+
+document.querySelectorAll('th.sortable').forEach(th =>
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === activeSort) { sortAsc = !sortAsc; }
+    else {
+      activeSort = col; sortAsc = false;
+      document.querySelectorAll('.sort-chip').forEach(c =>
+        c.classList.toggle('active', c.dataset.sort === activeSort));
+    }
+    render();
+  }));
+
+let searchTimer;
+document.getElementById('search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQuery = e.target.value.trim(); render(); }, 200);
+});
+
+loadData();
+</script>
+</body>
+</html>
